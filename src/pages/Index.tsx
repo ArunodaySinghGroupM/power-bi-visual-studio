@@ -9,6 +9,7 @@ import { CodeExport } from "@/components/CodeExport";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SheetTabs, type Sheet } from "@/components/SheetTabs";
 import type { CanvasVisualData } from "@/components/CanvasVisual";
+import { createMetaAdsVisuals } from "@/data/metaAdsData";
 
 interface SheetData {
   id: string;
@@ -53,9 +54,15 @@ const createDefaultSheet = (name: string): SheetData => {
   };
 };
 
+const createMetaSheet = (): SheetData => ({
+  id: crypto.randomUUID(),
+  name: "Meta Ads",
+  visuals: createMetaAdsVisuals(),
+});
+
 export default function Index() {
   const [sheets, setSheets] = useState<SheetData[]>([
-    createDefaultSheet("Meta"),
+    createMetaSheet(),
     createDefaultSheet("GA"),
     createDefaultSheet("DV360"),
   ]);
