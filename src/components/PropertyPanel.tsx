@@ -166,8 +166,8 @@ export function PropertyPanel({ properties, onChange, availableFields = [] }: Pr
             <Slider
               value={[properties.fontSize]}
               onValueChange={([value]) => updateProperty("fontSize", value)}
-              min={10}
-              max={24}
+              min={12}
+              max={28}
               step={1}
               className="w-full"
             />
