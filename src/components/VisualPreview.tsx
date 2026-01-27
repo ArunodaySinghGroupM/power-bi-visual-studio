@@ -532,23 +532,36 @@ export function VisualPreview({
           : 0;
 
         return (
-          <div className="flex flex-col items-center justify-center h-full p-4">
-            <div className="text-sm text-muted-foreground mb-2">{properties.title}</div>
+          <div className="flex flex-col items-center justify-center h-full w-full p-2 overflow-hidden">
+            {properties.showTitle && (
+              <div 
+                className="text-muted-foreground mb-1 text-center truncate w-full"
+                style={{ fontSize: Math.max(12, properties.fontSize) }}
+              >
+                {properties.title}
+              </div>
+            )}
             <div 
-              className="text-4xl font-bold mb-2"
-              style={{ color: properties.primaryColor }}
+              className="font-bold text-center leading-tight truncate w-full"
+              style={{ 
+                color: properties.primaryColor,
+                fontSize: Math.min(Math.max(24, properties.fontSize * 2.5), 48),
+              }}
             >
               {cardTotal.toLocaleString()}
             </div>
-            <div className={`flex items-center gap-1 text-sm ${cardChange >= 0 ? "text-green-500" : "text-red-500"}`}>
+            <div 
+              className={`flex items-center justify-center gap-1 mt-1 ${cardChange >= 0 ? "text-green-600" : "text-red-600"}`}
+              style={{ fontSize: Math.max(12, properties.fontSize) }}
+            >
               {cardChange > 0 ? (
-                <TrendingUp className="h-4 w-4" />
+                <TrendingUp className="h-4 w-4 flex-shrink-0" />
               ) : cardChange < 0 ? (
-                <TrendingDown className="h-4 w-4" />
+                <TrendingDown className="h-4 w-4 flex-shrink-0" />
               ) : (
-                <Minus className="h-4 w-4" />
+                <Minus className="h-4 w-4 flex-shrink-0" />
               )}
-              <span>{Math.abs(cardChange).toFixed(1)}%</span>
+              <span className="truncate">{Math.abs(cardChange).toFixed(1)}%</span>
             </div>
           </div>
         );
@@ -560,7 +573,7 @@ export function VisualPreview({
 
   return (
     <div
-      className="w-full h-full p-4 rounded-lg shadow-visual animate-scale-in"
+      className="w-full h-full p-3 rounded-lg shadow-visual animate-scale-in overflow-hidden flex flex-col"
       style={{
         backgroundColor: properties.backgroundColor,
         borderRadius: properties.borderRadius,
@@ -568,13 +581,13 @@ export function VisualPreview({
     >
       {properties.showTitle && type !== "card" && (
         <h3
-          className="font-semibold mb-4 text-center"
-          style={{ fontSize: properties.fontSize }}
+          className="font-semibold mb-3 text-center truncate flex-shrink-0"
+          style={{ fontSize: Math.max(14, properties.fontSize) }}
         >
           {properties.title}
         </h3>
       )}
-      <div className="h-[calc(100%-2rem)]">{renderChart()}</div>
+      <div className="flex-1 min-h-0 overflow-hidden">{renderChart()}</div>
     </div>
   );
 }
