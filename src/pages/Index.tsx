@@ -1,22 +1,20 @@
 import { useState, useCallback } from "react";
-import { Database, Settings, LayoutGrid, Hash, Type, Plus } from "lucide-react";
+import { Database, Settings, LayoutGrid, Hash, Type, Plus, BarChart3, Table2, CreditCard } from "lucide-react";
 import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, DragOverlay } from "@dnd-kit/core";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { FilterBar } from "@/components/FilterBar";
-import { ChannelSummaryCard, type ChannelData } from "@/components/ChannelSummaryCard";
-import { SpendSummaryChart } from "@/components/SpendSummaryChart";
-import { OverviewSection } from "@/components/OverviewSection";
-import { VisualizationSelector, VisualizationGridSelector, type VisualizationType } from "@/components/VisualizationSelector";
+import { VisualizationSelector, type VisualizationType } from "@/components/VisualizationSelector";
 import { VisualTypeSelector, type VisualType } from "@/components/VisualTypeSelector";
 import { PropertyPanel, type VisualProperties } from "@/components/PropertyPanel";
 import { DataEditor, type DataPoint } from "@/components/DataEditor";
 import { VisualCanvas } from "@/components/VisualCanvas";
 import { CodeExport } from "@/components/CodeExport";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SheetTabs, type Sheet } from "@/components/SheetTabs";
+import { SheetTabs } from "@/components/SheetTabs";
 import { DataFieldsPanel, metaAdsDataTables, type DataField, type DataTable } from "@/components/DataFieldsPanel";
+import { ComponentPalette } from "@/components/ComponentPalette";
 import type { CanvasVisualData } from "@/components/CanvasVisual";
-import { createMetaAdsVisuals, metaAdsRawData, metaAdsSummary } from "@/data/metaAdsData";
+import { metaAdsRawData } from "@/data/metaAdsData";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
@@ -34,81 +32,6 @@ const dashboardTabs = [
   { id: "glossary", label: "Glossary" },
 ];
 
-// Channel summary data
-const channelSummaryData: ChannelData[] = [
-  {
-    id: "search",
-    name: "Search",
-    icon: "search",
-    color: "pink",
-    metrics: [
-      { label: "Spend", value: 75328957, format: "currency" },
-      { label: "Impressions", value: "83.27B" },
-      { label: "Clicks", value: "2.08B" },
-      { label: "CPM", value: 0.90, format: "currency" },
-      { label: "CTR", value: 2.50, format: "percent" },
-    ],
-  },
-  {
-    id: "social",
-    name: "Social",
-    icon: "social",
-    color: "orange",
-    metrics: [
-      { label: "Spend", value: 65254, format: "currency" },
-      { label: "Impressions", value: "203.7M" },
-      { label: "Clicks", value: "1.66M" },
-      { label: "CPC", value: 0.04, format: "currency" },
-      { label: "Conversion Rate", value: 443.39, format: "percent" },
-    ],
-  },
-  {
-    id: "youtube",
-    name: "YouTube",
-    icon: "youtube",
-    color: "yellow",
-    metrics: [
-      { label: "Spend", value: 5096242, format: "currency" },
-      { label: "Video Completions", value: "3.69B" },
-      { label: "CPV", value: 0.00, format: "currency" },
-      { label: "CPCV", value: 0.00, format: "currency" },
-      { label: "VTR", value: 55.50, format: "percent" },
-    ],
-  },
-  {
-    id: "programmatic",
-    name: "Programmatic",
-    icon: "programmatic",
-    color: "amber",
-    metrics: [
-      { label: "Spend", value: 743604, format: "currency" },
-      { label: "Impressions", value: "1.44B" },
-      { label: "Clicks", value: "9.87M" },
-      { label: "Conversions", value: "3.38M" },
-      { label: "Conversion Rate", value: 34.21, format: "percent" },
-    ],
-  },
-  {
-    id: "direct-buy",
-    name: "Direct Buy",
-    icon: "directBuy",
-    color: "yellow",
-    metrics: [
-      { label: "Spend", value: "--" },
-      { label: "Impressions", value: "--" },
-      { label: "Clicks", value: "--" },
-      { label: "CPM", value: "--" },
-      { label: "CTR", value: "--" },
-    ],
-  },
-];
-
-// Spend summary for pie chart
-const spendSummaryData = [
-  { name: "Paid Search", value: 75328957, color: "#8b5cf6" },
-  { name: "Paid Social", value: 65254, color: "#ec4899" },
-];
-
 interface SheetData {
   id: string;
   name: string;
@@ -116,14 +39,13 @@ interface SheetData {
 }
 
 const createDefaultData = (): DataPoint[] => [
-  { id: crypto.randomUUID(), category: "Q1 Sales", value: 85 },
-  { id: crypto.randomUUID(), category: "Q2 Sales", value: 120 },
-  { id: crypto.randomUUID(), category: "Q3 Sales", value: 95 },
-  { id: crypto.randomUUID(), category: "Q4 Sales", value: 145 },
+  { id: crypto.randomUUID(), category: "Category 1", value: 0 },
+  { id: crypto.randomUUID(), category: "Category 2", value: 0 },
+  { id: crypto.randomUUID(), category: "Category 3", value: 0 },
 ];
 
 const createDefaultProperties = (): VisualProperties => ({
-  title: "Sales Performance",
+  title: "New Visual",
   showTitle: true,
   showLegend: false,
   showDataLabels: true,
@@ -138,24 +60,18 @@ const createNewVisual = (index: number, type: VisualType = "bar"): CanvasVisualD
   id: crypto.randomUUID(),
   type,
   data: createDefaultData(),
-  properties: createDefaultProperties(),
+  properties: {
+    ...createDefaultProperties(),
+    title: `${type.charAt(0).toUpperCase() + type.slice(1)} Chart`,
+  },
   position: { x: 50 + (index % 3) * 350, y: 50 + Math.floor(index / 3) * 280 },
-  size: { width: 320, height: 250 },
+  size: { width: 400, height: 300 },
 });
 
-const createDefaultSheet = (name: string): SheetData => {
-  const visual = createNewVisual(0);
-  return {
-    id: crypto.randomUUID(),
-    name,
-    visuals: [visual],
-  };
-};
-
-const createMetaSheet = (): SheetData => ({
+const createEmptySheet = (name: string): SheetData => ({
   id: crypto.randomUUID(),
-  name: "Meta Ads",
-  visuals: createMetaAdsVisuals(),
+  name,
+  visuals: [],
 });
 
 export default function Index() {
@@ -163,16 +79,15 @@ export default function Index() {
   const [selectedChannel, setSelectedChannel] = useState("all");
   const [selectedPlatform, setSelectedPlatform] = useState("all");
   const [selectedCurrency, setSelectedCurrency] = useState("USD");
-  const [selectedDimension, setSelectedDimension] = useState("Channel");
   const [dateRange] = useState({ start: "4/1/2025", end: "12/6/2025" });
 
   const [sheets, setSheets] = useState<SheetData[]>([
-    createMetaSheet(),
-    createDefaultSheet("GA"),
-    createDefaultSheet("DV360"),
+    createEmptySheet("Meta Ads"),
+    createEmptySheet("GA"),
+    createEmptySheet("DV360"),
   ]);
   const [activeSheetId, setActiveSheetId] = useState(sheets[0].id);
-  const [selectedId, setSelectedId] = useState<string | null>(sheets[0].visuals[0]?.id || null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isFieldDragging, setIsFieldDragging] = useState(false);
   const [draggingField, setDraggingField] = useState<DataField | null>(null);
   const [showConfigPanel, setShowConfigPanel] = useState(true);
@@ -198,10 +113,10 @@ export default function Index() {
   }, [sheets]);
 
   const handleAddSheet = useCallback(() => {
-    const newSheet = createDefaultSheet(`Sheet ${sheets.length + 1}`);
+    const newSheet = createEmptySheet(`Sheet ${sheets.length + 1}`);
     setSheets((prev) => [...prev, newSheet]);
     setActiveSheetId(newSheet.id);
-    setSelectedId(newSheet.visuals[0]?.id || null);
+    setSelectedId(null);
   }, [sheets.length]);
 
   const handleDeleteSheet = useCallback((id: string) => {
@@ -220,7 +135,7 @@ export default function Index() {
     );
   }, []);
 
-  // Visual handlers (scoped to active sheet)
+  // Visual handlers
   const handleAddVisual = useCallback((type?: VisualizationType) => {
     const visualType = (type || "bar") as VisualType;
     const newVisual = createNewVisual(visuals.length, visualType);
@@ -230,6 +145,7 @@ export default function Index() {
       )
     );
     setSelectedId(newVisual.id);
+    toast.success(`Added ${visualType} chart to canvas`);
   }, [visuals.length, activeSheetId]);
 
   const handleUpdateVisual = useCallback((id: string, updates: Partial<CanvasVisualData>) => {
@@ -319,7 +235,7 @@ export default function Index() {
     return [];
   };
 
-  // Handle drag start for DnD context
+  // Handle drag start
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const id = active.id as string;
@@ -333,7 +249,7 @@ export default function Index() {
     }
   };
 
-  // Handle drag end for DnD context
+  // Handle drag end
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over, delta } = event;
     const activeId = active.id as string;
@@ -364,12 +280,10 @@ export default function Index() {
     }
   };
 
-  const totalSpend = spendSummaryData.reduce((sum, d) => sum + d.value, 0);
-
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="h-screen flex flex-col bg-background">
-        {/* Dashboard Header with Navigation Tabs */}
+        {/* Dashboard Header */}
         <DashboardHeader
           tabs={dashboardTabs}
           activeTab={activeTab}
@@ -391,87 +305,54 @@ export default function Index() {
         />
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Main Content Area */}
-          <main className="flex-1 flex flex-col overflow-auto p-4 gap-4">
-            {/* Channel Summary Cards + Spend Chart */}
-            <div className="flex gap-4">
-              <div className="flex-1 space-y-2">
-                {channelSummaryData.map((channel) => (
-                  <ChannelSummaryCard
-                    key={channel.id}
-                    channel={channel}
-                    onClick={() => setActiveTab(channel.id)}
-                  />
-                ))}
-              </div>
-              <div className="w-80">
-                <SpendSummaryChart
-                  data={spendSummaryData}
-                  totalSpend={totalSpend}
-                />
-              </div>
-            </div>
+          {/* Left Sidebar - Component Palette */}
+          <aside className="w-64 border-r bg-card flex flex-col overflow-hidden">
+            <ComponentPalette onAddVisual={handleAddVisual} />
+          </aside>
 
-            {/* Overview Section with Charts */}
-            <OverviewSection
-              title="OVERVIEW"
-              dimensions={["Channel", "Campaign", "Ad Group", "Platform"]}
-              selectedDimension={selectedDimension}
-              onDimensionChange={setSelectedDimension}
-            >
-              {/* Add visualization button */}
-              <div className="col-span-3 flex items-center gap-4 pb-4 border-b">
-                <VisualizationSelector
-                  onSelect={(type) => handleAddVisual(type)}
-                  triggerLabel="Add Visualization"
-                />
-                <span className="text-sm text-muted-foreground">
-                  Select a chart or table type to add to your dashboard
+          {/* Main Canvas Area */}
+          <main className="flex-1 flex flex-col overflow-hidden">
+            {/* Canvas Toolbar */}
+            <div className="h-12 border-b bg-card px-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">Canvas</span>
+                <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded font-medium">
+                  {visuals.length} visual{visuals.length !== 1 ? "s" : ""}
                 </span>
               </div>
-            </OverviewSection>
-
-            {/* Canvas Area */}
-            <div className="flex-1 bg-muted/20 rounded-lg border min-h-[400px]">
-              <div className="h-12 border-b bg-card px-4 flex items-center justify-between rounded-t-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium">Canvas</span>
-                  <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded font-medium">
-                    {visuals.length} visual{visuals.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedVisual && (
-                    <CodeExport
-                      type={selectedVisual.type}
-                      data={selectedVisual.data}
-                      properties={selectedVisual.properties}
-                    />
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowConfigPanel(!showConfigPanel)}
-                  >
-                    {showConfigPanel ? "Hide Panel" : "Show Panel"}
-                  </Button>
-                </div>
-              </div>
-              <div className="p-4 canvas-grid overflow-auto h-[calc(100%-3rem)]">
-                <VisualCanvas
-                  visuals={visuals}
-                  selectedId={selectedId}
-                  isFieldDragging={isFieldDragging}
-                  onSelectVisual={setSelectedId}
-                  onUpdateVisual={handleUpdateVisual}
-                  onDeleteVisual={handleDeleteVisual}
-                  onDuplicateVisual={handleDuplicateVisual}
-                  onAddVisual={() => handleAddVisual()}
-                />
+              <div className="flex items-center gap-2">
+                {selectedVisual && (
+                  <CodeExport
+                    type={selectedVisual.type}
+                    data={selectedVisual.data}
+                    properties={selectedVisual.properties}
+                  />
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowConfigPanel(!showConfigPanel)}
+                >
+                  {showConfigPanel ? "Hide Panel" : "Show Panel"}
+                </Button>
               </div>
             </div>
 
-            {/* Sheet Tabs at Bottom */}
+            {/* Canvas */}
+            <div className="flex-1 p-4 bg-muted/30 canvas-grid overflow-auto">
+              <VisualCanvas
+                visuals={visuals}
+                selectedId={selectedId}
+                isFieldDragging={isFieldDragging}
+                onSelectVisual={setSelectedId}
+                onUpdateVisual={handleUpdateVisual}
+                onDeleteVisual={handleDeleteVisual}
+                onDuplicateVisual={handleDuplicateVisual}
+                onAddVisual={() => handleAddVisual()}
+              />
+            </div>
+
+            {/* Sheet Tabs */}
             <SheetTabs
               sheets={sheets.map((s) => ({ id: s.id, name: s.name }))}
               activeSheetId={activeSheetId}
@@ -482,7 +363,7 @@ export default function Index() {
             />
           </main>
 
-          {/* Right Sidebar - Data Fields & Config Panel */}
+          {/* Right Sidebar - Data Fields & Config */}
           {showConfigPanel && (
             <aside className="w-72 border-l bg-card flex flex-col overflow-hidden">
               <Tabs defaultValue="fields" className="flex-1 flex flex-col">
@@ -545,12 +426,12 @@ export default function Index() {
         </div>
       </div>
 
-      {/* Drag Overlay for fields */}
+      {/* Drag Overlay */}
       <DragOverlay>
         {draggingField && (
           <div className="flex items-center gap-2 px-3 py-2 bg-card border rounded-lg shadow-lg text-sm font-medium">
             {draggingField.type === "metric" ? (
-              <Hash className="h-4 w-4 text-blue-500" />
+              <Hash className="h-4 w-4 text-primary" />
             ) : (
               <Type className="h-4 w-4 text-amber-500" />
             )}
