@@ -135,6 +135,7 @@ function DashboardContent() {
   const [draggingComponent, setDraggingComponent] = useState<string | null>(null);
   const [draggingSlicerType, setDraggingSlicerType] = useState<SlicerType | null>(null);
   const [showConfigPanel, setShowConfigPanel] = useState(true);
+  const [showLeftPanel, setShowLeftPanel] = useState(true);
   
   const [slicerDateRanges, setSlicerDateRanges] = useState<Map<string, { start: Date | null; end: Date | null }>>(new Map());
   const [slicerNumericRanges, setSlicerNumericRanges] = useState<Map<string, { min: number; max: number }>>(new Map());
@@ -567,6 +568,30 @@ function DashboardContent() {
       const fieldData = activeData?.field as DataField | undefined;
       
       if (fieldData) {
+        // Handle drop on Field Well
+        if (overId.startsWith("well-")) {
+          const wellType = overId.replace("well-", "") as keyof FieldMapping;
+          if (selectedVisual) {
+            const currentMapping = selectedVisual.fieldMapping || { axis: [], values: [], tooltips: [] };
+            const newMapping = { ...currentMapping };
+            
+            if (wellType === "legend") {
+              newMapping.legend = fieldData;
+            } else {
+              const existingFields = (newMapping[wellType] as DataField[]) || [];
+              if (!existingFields.some(f => f.id === fieldData.id)) {
+                newMapping[wellType] = [...existingFields, fieldData] as never;
+              }
+            }
+            
+            handleFieldMappingChange(newMapping);
+            toast.success(`Added ${fieldData.name} to ${wellType}`);
+          } else {
+            toast.error("Select a visual first to add fields");
+          }
+          return;
+        }
+        
         // Handle drop on standalone visual
         if (overId.startsWith("drop-")) {
           const visualId = overId.replace("drop-", "");
@@ -643,13 +668,15 @@ function DashboardContent() {
       <div className="h-screen flex flex-col bg-background">
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar - Component & Layout Palette */}
-          <aside className="w-64 border-r bg-card flex flex-col overflow-hidden">
-            <ComponentPalette 
-              onAddVisual={handleAddVisual} 
-              onAddLayout={handleAddPanel}
-              onAddSlicer={handleAddSlicer}
-            />
-          </aside>
+          {showLeftPanel && (
+            <aside className="w-64 border-r bg-card flex flex-col overflow-hidden">
+              <ComponentPalette 
+                onAddVisual={handleAddVisual} 
+                onAddLayout={handleAddPanel}
+                onAddSlicer={handleAddSlicer}
+              />
+            </aside>
+          )}
 
           {/* Main Canvas Area */}
           <main className="flex-1 flex flex-col overflow-hidden">
@@ -676,6 +703,13 @@ function DashboardContent() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowLeftPanel(!showLeftPanel)}
+                >
+                  {showLeftPanel ? "Hide Left" : "Show Left"}
+                </Button>
                 {selectedVisual && (
                   <CodeExport
                     type={selectedVisual.type}
@@ -688,7 +722,7 @@ function DashboardContent() {
                   size="sm"
                   onClick={() => setShowConfigPanel(!showConfigPanel)}
                 >
-                  {showConfigPanel ? "Hide Panel" : "Show Panel"}
+                  {showConfigPanel ? "Hide Right" : "Show Right"}
                 </Button>
               </div>
             </div>
@@ -825,20 +859,12 @@ function DashboardContent() {
                   <div className="space-y-4">
                     {selectedVisual ? (
                       <>
-                        <div>
-                          <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">
-                            Chart Type
-                          </h3>
-                          <VisualTypeSelector selected={selectedVisual.type} onSelect={handleTypeChange} />
-                        </div>
+                        <FieldWells
+                          fieldMapping={selectedVisual.fieldMapping || { axis: [], values: [], tooltips: [] }}
+                          onFieldMappingChange={handleFieldMappingChange}
+                        />
                         <div className="border-t pt-4">
-                          <FieldWells
-                            fieldMapping={selectedVisual.fieldMapping || { axis: [], values: [], tooltips: [] }}
-                            onFieldMappingChange={handleFieldMappingChange}
-                          />
-                        </div>
-                        <div className="border-t pt-4">
-                          <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">
+                          <h3 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wider">
                             Data
                           </h3>
                           <DataEditor data={selectedVisual.data} onChange={handleDataChange} />
