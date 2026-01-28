@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, LayoutDashboard, Clock, Eye, Loader2, FolderOpen } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Clock, Eye, Loader2, FolderOpen, LogOut, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 
 interface Dashboard {
@@ -17,9 +18,15 @@ interface Dashboard {
 
 export default function DashboardList() {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
 
   const { data: dashboards = [], isLoading, error } = useQuery({
-    queryKey: ["dashboards"],
+    queryKey: ["dashboards", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("dashboards")
@@ -29,6 +36,7 @@ export default function DashboardList() {
       if (error) throw error;
       return data as Dashboard[];
     },
+    enabled: !!user,
   });
 
   const getSheetCount = (sheetsData: unknown): number => {
@@ -41,14 +49,35 @@ export default function DashboardList() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="h-14 border-b bg-card px-4 flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+      <header className="h-14 border-b bg-card px-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="h-5 w-5 text-primary" />
+            <h1 className="text-sm font-semibold">My Dashboards</h1>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-          <LayoutDashboard className="h-5 w-5 text-primary" />
-          <h1 className="text-sm font-semibold">Saved Dashboards</h1>
+          {user && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {user.email}
+            </span>
+          )}
+          <Button size="sm" onClick={() => navigate("/create")}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Dashboard
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            title="Sign Out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
