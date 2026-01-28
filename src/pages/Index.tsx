@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, LayoutGrid, Hash, Type, Filter, Loader2, Database, RefreshCw, AlertCircle, Save, ArrowLeft } from "lucide-react";
+import { Settings, LayoutGrid, Hash, Type, Filter, Loader2, Database, RefreshCw, AlertCircle, Save, ArrowLeft, LogOut } from "lucide-react";
 import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, DragOverlay } from "@dnd-kit/core";
 import { VisualTypeSelector, type VisualType } from "@/components/VisualTypeSelector";
 import { PropertyPanel, type VisualProperties } from "@/components/PropertyPanel";
@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { FilterProvider, useFilters } from "@/contexts/FilterContext";
 import { CrossFilterProvider, useCrossFilter } from "@/contexts/CrossFilterContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { DropdownSlicer, ListSlicer, DateRangeSlicer, NumericRangeSlicer } from "@/components/slicers";
 import { useMetaAdsData, getUniqueValues } from "@/hooks/useMetaAdsData";
 import { supabase } from "@/integrations/supabase/client";
@@ -121,9 +122,15 @@ const getDefaultSlicerField = (type: SlicerType): { field: string; label: string
 
 function DashboardContent() {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const { filters, addFilter, removeFilter, getFilteredData } = useFilters();
   const { crossFilter, setCrossFilter, clearCrossFilter } = useCrossFilter();
   const { data: metaAdsData = [], isLoading: isLoadingMetaAds, error: metaAdsError, refetch: refetchMetaAds, isFetching: isFetchingMetaAds } = useMetaAdsData();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
 
   const [sheets, setSheets] = useState<SheetData[]>([
     createEmptySheet("Meta Ads"),
@@ -177,6 +184,11 @@ function DashboardContent() {
       return;
     }
 
+    if (!user) {
+      toast.error("You must be logged in to save dashboards");
+      return;
+    }
+
     setIsSaving(true);
     try {
       // Convert slotVisuals Map to plain object for JSON storage
@@ -189,6 +201,7 @@ function DashboardContent() {
         name: dashboardName.trim(),
         description: dashboardDescription.trim() || null,
         sheets_data: JSON.parse(JSON.stringify(sheetsForStorage)),
+        user_id: user.id,
       }]);
 
       if (error) throw error;
@@ -204,7 +217,7 @@ function DashboardContent() {
     } finally {
       setIsSaving(false);
     }
-  }, [dashboardName, dashboardDescription, sheets, navigate]);
+  }, [dashboardName, dashboardDescription, sheets, navigate, user]);
 
   // Sheet handlers
   const handleSelectSheet = useCallback((id: string) => {
@@ -942,6 +955,14 @@ function DashboardContent() {
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save Dashboard
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSignOut}
+                  title="Sign Out"
+                >
+                  <LogOut className="h-4 w-4" />
                 </Button>
               </div>
             </div>

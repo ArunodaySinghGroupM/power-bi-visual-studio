@@ -1,20 +1,21 @@
 import { useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, LayoutDashboard, Loader2, Filter, Database, RefreshCw, AlertCircle } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Loader2, Filter, Database, RefreshCw, AlertCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { SheetTabs } from "@/components/SheetTabs";
 import { VisualPreview } from "@/components/VisualPreview";
 import { FilterProvider, useFilters } from "@/contexts/FilterContext";
 import { CrossFilterProvider, useCrossFilter } from "@/contexts/CrossFilterContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useMetaAdsData, getUniqueValues } from "@/hooks/useMetaAdsData";
 import { DropdownSlicer, ListSlicer, DateRangeSlicer, NumericRangeSlicer } from "@/components/slicers";
+import { getGridStyle } from "@/utils/layoutStyles";
 import type { SlicerData } from "@/types/dashboard";
 import type { DataPoint } from "@/components/DataEditor";
 import type { VisualProperties } from "@/components/PropertyPanel";
 import type { VisualType } from "@/components/VisualTypeSelector";
-
 interface SlotData {
   id: string;
   position: { row: number; col: number };
@@ -63,9 +64,15 @@ interface Dashboard {
 function ViewDashboardContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const { filters, addFilter, removeFilter } = useFilters();
   const { crossFilter, setCrossFilter } = useCrossFilter();
   const { data: metaAdsData = [], isLoading: isLoadingMetaAds, error: metaAdsError, refetch: refetchMetaAds, isFetching: isFetchingMetaAds } = useMetaAdsData();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
 
   const [slicerDateRanges, setSlicerDateRanges] = useState<Map<string, { start: Date | null; end: Date | null }>>(new Map());
   const [slicerNumericRanges, setSlicerNumericRanges] = useState<Map<string, { min: number; max: number }>>(new Map());
@@ -230,6 +237,14 @@ function ViewDashboardContent() {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetchingMetaAds ? 'animate-spin' : ''}`} />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            title="Sign Out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
@@ -328,7 +343,7 @@ function ViewDashboardContent() {
           {activeSheet?.panels.map((panel) => (
             <div
               key={panel.id}
-              className="absolute bg-card rounded-lg border shadow-sm overflow-hidden"
+              className="absolute bg-card/80 backdrop-blur-sm rounded-xl border-2 border-border/50 shadow-sm overflow-hidden"
               style={{
                 left: panel.position.x,
                 top: panel.position.y,
@@ -336,23 +351,23 @@ function ViewDashboardContent() {
                 height: panel.size.height,
               }}
             >
-              <div className="grid h-full" style={{
-                gridTemplateColumns: panel.layoutType === "single" ? "1fr" : 
-                  panel.layoutType === "2-column" ? "1fr 1fr" :
-                  panel.layoutType === "3-column" ? "1fr 1fr 1fr" :
-                  panel.layoutType === "2x2-grid" ? "1fr 1fr" : "1fr",
-                gridTemplateRows: panel.layoutType === "2x2-grid" ? "1fr 1fr" :
-                  panel.layoutType === "sidebar-left" || panel.layoutType === "sidebar-right" ? "1fr" : "1fr",
-              }}>
+              <div className="p-4 h-full" style={getGridStyle(panel.layoutType)}>
                 {panel.slots.map((slot) => {
                   const visual = slotVisuals.get(slot.id);
                   if (!visual) {
                     return (
-                      <div key={slot.id} className="border-r border-b last:border-r-0 last:border-b-0 bg-muted/20" />
+                      <div 
+                        key={slot.id} 
+                        className="min-h-[100px] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20" 
+                      />
                     );
                   }
-                    return (
-                      <div key={slot.id} className="border-r border-b last:border-r-0 last:border-b-0 overflow-hidden">
+                  return (
+                    <div 
+                      key={slot.id} 
+                      className="min-h-[100px] rounded-lg border-2 border-border bg-card overflow-hidden"
+                    >
+                      <div className="w-full h-full p-3">
                         <VisualPreview
                           type={visual.type}
                           data={visual.data}
@@ -362,6 +377,7 @@ function ViewDashboardContent() {
                           valueFieldNames={visual.fieldMapping?.values?.map(v => v.name)}
                         />
                       </div>
+                    </div>
                   );
                 })}
               </div>
