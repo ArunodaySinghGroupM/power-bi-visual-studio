@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SheetTabs } from "@/components/SheetTabs";
 import { DataFieldsPanel, metaAdsDataTables, type DataField, type DataTable } from "@/components/DataFieldsPanel";
 import { ComponentPalette } from "@/components/ComponentPalette";
-import { FieldWells } from "@/components/FieldWells";
+import { ChartConfigDropdowns, type ChartConfig } from "@/components/ChartConfigDropdowns";
 import { type LayoutType } from "@/components/LayoutPalette";
 import { type PanelData, generateSlots } from "@/components/DraggablePanel";
 import type { CanvasVisualData } from "@/components/CanvasVisual";
@@ -155,6 +155,9 @@ function DashboardContent() {
   
   const [slicerDateRanges, setSlicerDateRanges] = useState<Map<string, { start: Date | null; end: Date | null }>>(new Map());
   const [slicerNumericRanges, setSlicerNumericRanges] = useState<Map<string, { min: number; max: number }>>(new Map());
+
+  // Chart configuration state - tracks measure/groupBy/date for each visual
+  const [visualConfigs, setVisualConfigs] = useState<Map<string, ChartConfig>>(new Map());
 
   // Save dialog state
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -582,7 +585,7 @@ function DashboardContent() {
   }, [setCrossFilter]);
 
   // Helper function to get time period key based on granularity
-  const getTimePeriodKey = (dateStr: string, granularity: TimeGranularity): string => {
+  const getTimePeriodKey = useCallback((dateStr: string, granularity: TimeGranularity): string => {
     if (granularity === "none" || !dateStr) return dateStr;
     
     const date = new Date(dateStr);
@@ -602,7 +605,7 @@ function DashboardContent() {
       default:
         return dateStr;
     }
-  };
+  }, []);
 
   // Transform data based on field mapping - supports multiple value fields and time granularity
   const transformDataFromFieldMapping = useCallback((visualId: string, mapping: FieldMapping) => {
@@ -737,6 +740,93 @@ function DashboardContent() {
       }
     }
   }, [selectedVisualId, handleUpdateVisual, transformDataFromFieldMapping]);
+
+  // Handle chart config change (new 3-dropdown interface)
+  const handleChartConfigChange = useCallback((visualId: string, config: ChartConfig) => {
+    // Save config state
+    setVisualConfigs(prev => new Map(prev).set(visualId, config));
+    
+    // Only process if we have both measure and groupBy selected
+    if (!config.measure || !config.groupBy || metaAdsData.length === 0) return;
+
+    // Map dropdown values to database field names
+    const measureToDbField: Record<string, string> = {
+      "Clicks": "clicks",
+      "Spend": "spend",
+      "Impression": "impressions",
+      "CTR": "ctr",
+      "CPC": "cpc",
+      "CPM": "cpm",
+      "Leads": "conversions",
+      // For metrics not in current DB, we'll use a default mapping
+    };
+
+    const groupByToDbField: Record<string, string> = {
+      "Campaign Name": "campaign_name",
+      "Ad Set Name": "ad_set_name",
+      "Ad Name": "ad_set_name", // Map to available field
+      "Platform": "campaign_name", // Will simulate
+      "Device": "campaign_name",
+      "Age": "campaign_name",
+      "Gender": "campaign_name",
+    };
+
+    const measureKey = measureToDbField[config.measure] || "clicks";
+    const groupByKey = groupByToDbField[config.groupBy] || "campaign_name";
+    const timeGranularity = config.dateGranularity as TimeGranularity;
+
+    // Aggregate data based on groupBy and date granularity
+    const aggregatedData = new Map<string, { sum: number; count: number }>();
+
+    metaAdsData.forEach((record) => {
+      let groupValue = String(record[groupByKey as keyof typeof record] || "Unknown");
+      
+      // If date granularity is set, append time period
+      if (timeGranularity !== "none" && record.date) {
+        const timePeriod = getTimePeriodKey(record.date, timeGranularity);
+        groupValue = `${groupValue} - ${timePeriod}`;
+      }
+
+      const rawValue = record[measureKey as keyof typeof record];
+      const value = typeof rawValue === "number" ? rawValue : 0;
+
+      if (!aggregatedData.has(groupValue)) {
+        aggregatedData.set(groupValue, { sum: 0, count: 0 });
+      }
+      const entry = aggregatedData.get(groupValue)!;
+      entry.sum += value;
+      entry.count += 1;
+    });
+
+    // Create chart data points
+    const newData: DataPoint[] = Array.from(aggregatedData.entries())
+      .map(([category, { sum, count }]) => ({
+        id: crypto.randomUUID(),
+        category: category.slice(0, 30),
+        value: Math.round((measureKey === "ctr" || measureKey === "cpc" || measureKey === "cpm" 
+          ? sum / count 
+          : sum) * 100) / 100,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 15); // Limit to top 15 for readability
+
+    const visual = visuals.find((v) => v.id === visualId) ||
+      Array.from(slotVisuals.values()).find((v) => v.id === visualId);
+
+    // Build title
+    const timeLabel = config.dateGranularity !== "none" ? ` by ${config.dateGranularity}` : "";
+    const title = `${config.measure} by ${config.groupBy}${timeLabel}`;
+
+    handleUpdateVisual(visualId, {
+      data: newData,
+      properties: {
+        ...visual?.properties!,
+        title,
+      },
+    });
+
+    toast.success(`Loaded ${config.measure} by ${config.groupBy}${timeLabel}`);
+  }, [metaAdsData, visuals, slotVisuals, handleUpdateVisual, getTimePeriodKey]);
 
   // Handle drag start
   const handleDragStart = (event: DragStartEvent) => {
@@ -1162,13 +1252,13 @@ function DashboardContent() {
                   <div className="space-y-4">
                     {selectedVisual ? (
                       <>
-                        <FieldWells
-                          fieldMapping={selectedVisual.fieldMapping || { axis: [], values: [], tooltips: [] }}
-                          onFieldMappingChange={handleFieldMappingChange}
+                        <ChartConfigDropdowns
+                          config={visualConfigs.get(selectedVisual.id) || { measure: "", groupBy: "", dateGranularity: "none" }}
+                          onChange={(config) => handleChartConfigChange(selectedVisual.id, config)}
                         />
                         <div className="border-t pt-4">
                           <h3 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wider">
-                            Data
+                            Data Preview
                           </h3>
                           <DataEditor data={selectedVisual.data} onChange={handleDataChange} />
                         </div>
