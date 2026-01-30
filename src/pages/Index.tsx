@@ -1,13 +1,34 @@
+/**
+ * Index.tsx - Main Dashboard Builder Page
+ * 
+ * This is the core dashboard creation interface where users can:
+ * - Drag and drop panel layouts onto the canvas
+ * - Add chart visuals to panel slots
+ * - Configure chart data using Measure/GroupBy/Date dropdowns
+ * - Add filter slicers for data filtering
+ * - Save dashboards to the database
+ * 
+ * Architecture:
+ * - Uses DndContext from @dnd-kit for drag-and-drop functionality
+ * - Manages state for sheets, panels, visuals, and slicers
+ * - Integrates with Supabase for data fetching and persistence
+ */
+
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, LayoutGrid, Hash, Type, Filter, Loader2, Database, RefreshCw, AlertCircle, Save, ArrowLeft, LogOut } from "lucide-react";
+
+// UI Icons
+import { Settings, LayoutGrid, Loader2, Database, RefreshCw, AlertCircle, Save, ArrowLeft, LogOut, Filter, Hash, Type } from "lucide-react";
+
+// Drag and drop functionality
 import { DndContext, DragEndEvent, DragStartEvent, useSensor, useSensors, PointerSensor, DragOverlay } from "@dnd-kit/core";
+
+// Dashboard components
 import { VisualTypeSelector, type VisualType } from "@/components/VisualTypeSelector";
 import { PropertyPanel, type VisualProperties } from "@/components/PropertyPanel";
-import { DataEditor, type DataPoint } from "@/components/DataEditor";
+import type { DataPoint } from "@/components/DataEditor";
 import { PanelCanvas } from "@/components/PanelCanvas";
 import { CodeExport } from "@/components/CodeExport";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SheetTabs } from "@/components/SheetTabs";
 import { DataFieldsPanel, metaAdsDataTables, type DataField, type DataTable } from "@/components/DataFieldsPanel";
 import { ComponentPalette } from "@/components/ComponentPalette";
@@ -16,36 +37,68 @@ import { type LayoutType } from "@/components/LayoutPalette";
 import { type PanelData, generateSlots } from "@/components/DraggablePanel";
 import type { CanvasVisualData } from "@/components/CanvasVisual";
 import type { VisualizationType } from "@/components/VisualizationSelector";
-import type { SlicerType, SlicerData, FieldMapping, TimeGranularity } from "@/types/dashboard";
-import { toast } from "sonner";
+
+// UI components
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+
+// Contexts and hooks
 import { FilterProvider, useFilters } from "@/contexts/FilterContext";
 import { CrossFilterProvider, useCrossFilter } from "@/contexts/CrossFilterContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { DropdownSlicer, ListSlicer, DateRangeSlicer, NumericRangeSlicer } from "@/components/slicers";
 import { useMetaAdsData, getUniqueValues } from "@/hooks/useMetaAdsData";
+
+// Slicer components
+import { DropdownSlicer, ListSlicer, DateRangeSlicer, NumericRangeSlicer } from "@/components/slicers";
+
+// Types
+import type { SlicerType, SlicerData, FieldMapping, TimeGranularity } from "@/types/dashboard";
+
+// Utilities
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfWeek, startOfMonth, startOfQuarter, startOfYear, format } from "date-fns";
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/** Map to store visuals placed in panel slots (slotId -> VisualData) */
 type SlotVisualsMap = Map<string, CanvasVisualData>;
 
+/**
+ * SheetData - Represents a single sheet/tab in the dashboard
+ * Each dashboard can have multiple sheets (e.g., Meta Ads, GA, DV360)
+ */
 interface SheetData {
-  id: string;
-  name: string;
-  panels: PanelData[];
-  visuals: CanvasVisualData[];
-  slotVisuals: SlotVisualsMap;
-  slicers: SlicerData[];
+  id: string;                        // Unique identifier for the sheet
+  name: string;                      // Display name shown in tab
+  panels: PanelData[];               // Layout panels on this sheet
+  visuals: CanvasVisualData[];       // Standalone visuals (not in panels)
+  slotVisuals: SlotVisualsMap;       // Visuals placed inside panel slots
+  slicers: SlicerData[];             // Filter slicers on this sheet
 }
 
+// ============================================================================
+// FACTORY FUNCTIONS - Create new elements with default values
+// ============================================================================
+
+/**
+ * Creates default placeholder data for new charts
+ * Returns 3 empty data points to show chart structure
+ */
 const createDefaultData = (): DataPoint[] => [
   { id: crypto.randomUUID(), category: "Category 1", value: 0 },
   { id: crypto.randomUUID(), category: "Category 2", value: 0 },
   { id: crypto.randomUUID(), category: "Category 3", value: 0 },
 ];
 
+/**
+ * Creates default visual properties for new charts
+ * Includes styling, colors, and display options
+ */
 const createDefaultProperties = (): VisualProperties => ({
   title: "New Visual",
   showTitle: true,
@@ -60,6 +113,11 @@ const createDefaultProperties = (): VisualProperties => ({
   barChartMode: "grouped",
 });
 
+/**
+ * Creates a new visual (chart) with default settings
+ * @param index - Position index for auto-layout
+ * @param type - Chart type (bar, line, pie, etc.)
+ */
 const createNewVisual = (index: number, type: VisualType = "bar"): CanvasVisualData => ({
   id: crypto.randomUUID(),
   type,
@@ -70,13 +128,14 @@ const createNewVisual = (index: number, type: VisualType = "bar"): CanvasVisualD
   },
   position: { x: 50 + (index % 3) * 350, y: 50 + Math.floor(index / 3) * 280 },
   size: { width: 400, height: 300 },
-  fieldMapping: {
-    axis: [],
-    values: [],
-    tooltips: [],
-  },
+  fieldMapping: { axis: [], values: [], tooltips: [] },
 });
 
+/**
+ * Creates a new panel with specified layout
+ * @param layoutType - Type of layout (single, 2-column, 2-row, etc.)
+ * @param index - Position index for auto-layout
+ */
 const createNewPanel = (layoutType: LayoutType, index: number): PanelData => ({
   id: crypto.randomUUID(),
   layoutType,
@@ -85,6 +144,13 @@ const createNewPanel = (layoutType: LayoutType, index: number): PanelData => ({
   slots: generateSlots(layoutType),
 });
 
+/**
+ * Creates a new slicer (filter component) with default settings
+ * @param type - Slicer type (dropdown, list, date-range, numeric-range)
+ * @param field - Data field to filter on
+ * @param fieldLabel - Display label for the field
+ * @param index - Position index for auto-layout
+ */
 const createNewSlicer = (type: SlicerType, field: string, fieldLabel: string, index: number): SlicerData => ({
   id: crypto.randomUUID(),
   type,
@@ -101,6 +167,10 @@ const createNewSlicer = (type: SlicerType, field: string, fieldLabel: string, in
   showSearch: type === "list",
 });
 
+/**
+ * Creates an empty sheet with no elements
+ * @param name - Display name for the sheet tab
+ */
 const createEmptySheet = (name: string): SheetData => ({
   id: crypto.randomUUID(),
   name,
@@ -110,6 +180,11 @@ const createEmptySheet = (name: string): SheetData => ({
   slicers: [],
 });
 
+/**
+ * Gets the default field for a slicer based on its type
+ * @param type - Slicer type
+ * @returns Object with field key and label
+ */
 const getDefaultSlicerField = (type: SlicerType): { field: string; label: string } => {
   switch (type) {
     case "date-range":
@@ -121,27 +196,58 @@ const getDefaultSlicerField = (type: SlicerType): { field: string; label: string
   }
 };
 
-function DashboardContent() {
-  const navigate = useNavigate();
-  const { user, signOut } = useAuth();
-  const { filters, addFilter, removeFilter, getFilteredData } = useFilters();
-  const { crossFilter, setCrossFilter, clearCrossFilter } = useCrossFilter();
-  const { data: metaAdsData = [], isLoading: isLoadingMetaAds, error: metaAdsError, refetch: refetchMetaAds, isFetching: isFetchingMetaAds } = useMetaAdsData();
+// ============================================================================
+// MAIN DASHBOARD COMPONENT
+// ============================================================================
 
+/**
+ * DashboardContent - The main dashboard builder interface
+ * 
+ * This component manages:
+ * - Multiple sheets with panels, visuals, and slicers
+ * - Drag and drop for adding elements
+ * - Chart configuration via dropdowns
+ * - Data fetching from Supabase
+ * - Dashboard saving functionality
+ */
+function DashboardContent() {
+  // ========== HOOKS & CONTEXTS ==========
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();                                      // Authentication
+  const { filters, addFilter, removeFilter, getFilteredData } = useFilters();  // Global filters
+  const { crossFilter, setCrossFilter, clearCrossFilter } = useCrossFilter();  // Cross-filtering between charts
+  
+  // Fetch Meta Ads data from Supabase
+  const { 
+    data: metaAdsData = [], 
+    isLoading: isLoadingMetaAds, 
+    error: metaAdsError, 
+    refetch: refetchMetaAds, 
+    isFetching: isFetchingMetaAds 
+  } = useMetaAdsData();
+
+  // Sign out handler
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
 
+  // ========== STATE MANAGEMENT ==========
+  
+  // Sheet state - each sheet contains panels, visuals, and slicers
   const [sheets, setSheets] = useState<SheetData[]>([
     createEmptySheet("Meta Ads"),
     createEmptySheet("GA"),
     createEmptySheet("DV360"),
   ]);
   const [activeSheetId, setActiveSheetId] = useState(sheets[0].id);
+  
+  // Selection state - tracks which element is currently selected
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [selectedVisualId, setSelectedVisualId] = useState<string | null>(null);
   const [selectedSlicerId, setSelectedSlicerId] = useState<string | null>(null);
+  
+  // Drag state - tracks what type of element is being dragged
   const [isLayoutDragging, setIsLayoutDragging] = useState(false);
   const [isComponentDragging, setIsComponentDragging] = useState(false);
   const [isFieldDragging, setIsFieldDragging] = useState(false);
@@ -150,13 +256,16 @@ function DashboardContent() {
   const [draggingLayout, setDraggingLayout] = useState<LayoutType | null>(null);
   const [draggingComponent, setDraggingComponent] = useState<string | null>(null);
   const [draggingSlicerType, setDraggingSlicerType] = useState<SlicerType | null>(null);
+  
+  // Panel visibility state
   const [showConfigPanel, setShowConfigPanel] = useState(true);
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   
+  // Slicer state - stores ranges for date and numeric slicers
   const [slicerDateRanges, setSlicerDateRanges] = useState<Map<string, { start: Date | null; end: Date | null }>>(new Map());
   const [slicerNumericRanges, setSlicerNumericRanges] = useState<Map<string, { min: number; max: number }>>(new Map());
 
-  // Chart configuration state - tracks measure/groupBy/date for each visual
+  // Chart configuration state - stores measure/groupBy/date for each visual
   const [visualConfigs, setVisualConfigs] = useState<Map<string, ChartConfig>>(new Map());
 
   // Save dialog state
@@ -165,29 +274,38 @@ function DashboardContent() {
   const [dashboardDescription, setDashboardDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // ========== DERIVED STATE ==========
+  // Get current sheet's data for easy access
   const activeSheet = sheets.find((s) => s.id === activeSheetId);
   const panels = activeSheet?.panels || [];
   const visuals = activeSheet?.visuals || [];
   const slotVisuals = activeSheet?.slotVisuals || new Map<string, CanvasVisualData>();
   const slicers = activeSheet?.slicers || [];
+  
+  // Find selected elements
   const selectedVisual = visuals.find((v) => v.id === selectedVisualId) || 
     Array.from(slotVisuals.values()).find((v) => v.id === selectedVisualId);
   const selectedPanel = panels.find((p) => p.id === selectedPanelId);
   const selectedSlicer = slicers.find((s) => s.id === selectedSlicerId);
 
+  // Configure drag sensors - requires 5px movement to start drag
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
     })
   );
 
-  // Save dashboard to database
+  // ========== SAVE DASHBOARD HANDLER ==========
+  /**
+   * Saves the current dashboard to Supabase
+   * Converts Map structures to plain objects for JSON serialization
+   */
   const handleSaveDashboard = useCallback(async () => {
+    // Validate required fields
     if (!dashboardName.trim()) {
       toast.error("Please enter a dashboard name");
       return;
     }
-
     if (!user) {
       toast.error("You must be logged in to save dashboards");
       return;
@@ -201,6 +319,7 @@ function DashboardContent() {
         slotVisuals: Object.fromEntries(sheet.slotVisuals),
       }));
 
+      // Insert dashboard into Supabase
       const { error } = await supabase.from("dashboards").insert([{
         name: dashboardName.trim(),
         description: dashboardDescription.trim() || null,
@@ -223,7 +342,9 @@ function DashboardContent() {
     }
   }, [dashboardName, dashboardDescription, sheets, navigate, user]);
 
-  // Sheet handlers
+  // ========== SHEET HANDLERS ==========
+  
+  /** Selects a sheet and clears any selections */
   const handleSelectSheet = useCallback((id: string) => {
     setActiveSheetId(id);
     setSelectedPanelId(null);
@@ -231,6 +352,7 @@ function DashboardContent() {
     setSelectedSlicerId(null);
   }, []);
 
+  /** Adds a new empty sheet to the dashboard */
   const handleAddSheet = useCallback(() => {
     const newSheet = createEmptySheet(`Sheet ${sheets.length + 1}`);
     setSheets((prev) => [...prev, newSheet]);
@@ -239,6 +361,7 @@ function DashboardContent() {
     setSelectedVisualId(null);
   }, [sheets.length]);
 
+  /** Deletes a sheet (prevents deleting last sheet) */
   const handleDeleteSheet = useCallback((id: string) => {
     if (sheets.length <= 1) return;
     setSheets((prev) => prev.filter((s) => s.id !== id));
@@ -248,6 +371,7 @@ function DashboardContent() {
     }
   }, [sheets, activeSheetId]);
 
+  /** Renames a sheet */
   const handleRenameSheet = useCallback((id: string, name: string) => {
     setSheets((prev) =>
       prev.map((s) => (s.id === id ? { ...s, name } : s))
@@ -477,15 +601,14 @@ function DashboardContent() {
     }
   }, [visuals, activeSheetId]);
 
-  // Handlers for updating selected visual
+  // ========== VISUAL UPDATE HANDLERS ==========
+  
+  /** Updates the visual type (bar, line, pie, etc.) */
   const handleTypeChange = (type: VisualType) => {
     if (selectedVisualId) handleUpdateVisual(selectedVisualId, { type });
   };
 
-  const handleDataChange = (data: DataPoint[]) => {
-    if (selectedVisualId) handleUpdateVisual(selectedVisualId, { data });
-  };
-
+  /** Updates the visual properties (colors, labels, etc.) */
   const handlePropertiesChange = (properties: VisualProperties) => {
     if (selectedVisualId) handleUpdateVisual(selectedVisualId, { properties });
   };
@@ -741,15 +864,22 @@ function DashboardContent() {
     }
   }, [selectedVisualId, handleUpdateVisual, transformDataFromFieldMapping]);
 
-  // Handle chart config change (new 3-dropdown interface)
+  // ========== CHART CONFIG HANDLER ==========
+  /**
+   * Handles chart configuration changes from the 3-dropdown interface
+   * Transforms raw database data into chart-ready format based on:
+   * - measure: Which metric to aggregate (Clicks, Spend, etc.)
+   * - groupBy: Which dimension to group by (Campaign, Ad Set, etc.)
+   * - dateGranularity: Time period grouping (Day, Week, Month, etc.)
+   */
   const handleChartConfigChange = useCallback((visualId: string, config: ChartConfig) => {
-    // Save config state
+    // Save config state for persistence
     setVisualConfigs(prev => new Map(prev).set(visualId, config));
     
     // Only process if we have both measure and groupBy selected
     if (!config.measure || !config.groupBy || metaAdsData.length === 0) return;
 
-    // Map dropdown values to database field names
+    // Map UI dropdown values to database column names
     const measureToDbField: Record<string, string> = {
       "Clicks": "clicks",
       "Spend": "spend",
@@ -758,19 +888,19 @@ function DashboardContent() {
       "CPC": "cpc",
       "CPM": "cpm",
       "Leads": "conversions",
-      // For metrics not in current DB, we'll use a default mapping
     };
 
     const groupByToDbField: Record<string, string> = {
       "Campaign Name": "campaign_name",
       "Ad Set Name": "ad_set_name",
-      "Ad Name": "ad_set_name", // Map to available field
-      "Platform": "campaign_name", // Will simulate
+      "Ad Name": "ad_set_name",
+      "Platform": "campaign_name",
       "Device": "campaign_name",
       "Age": "campaign_name",
       "Gender": "campaign_name",
     };
 
+    // Get database field keys
     const measureKey = measureToDbField[config.measure] || "clicks";
     const groupByKey = groupByToDbField[config.groupBy] || "campaign_name";
     const timeGranularity = config.dateGranularity as TimeGranularity;
@@ -1250,19 +1380,12 @@ function DashboardContent() {
 
                 <TabsContent value="visual" className="flex-1 p-4 overflow-y-auto m-0">
                   <div className="space-y-4">
+                    {/* Chart Configuration Panel - Shown when a visual is selected */}
                     {selectedVisual ? (
-                      <>
-                        <ChartConfigDropdowns
-                          config={visualConfigs.get(selectedVisual.id) || { measure: "", groupBy: "", dateGranularity: "none" }}
-                          onChange={(config) => handleChartConfigChange(selectedVisual.id, config)}
-                        />
-                        <div className="border-t pt-4">
-                          <h3 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wider">
-                            Data Preview
-                          </h3>
-                          <DataEditor data={selectedVisual.data} onChange={handleDataChange} />
-                        </div>
-                      </>
+                      <ChartConfigDropdowns
+                        config={visualConfigs.get(selectedVisual.id) || { measure: "", groupBy: "", dateGranularity: "none" }}
+                        onChange={(config) => handleChartConfigChange(selectedVisual.id, config)}
+                      />
                     ) : selectedPanel ? (
                       <div className="space-y-3">
                         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
