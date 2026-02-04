@@ -774,7 +774,69 @@ function DashboardContent() {
     // Save config state for persistence
     setVisualConfigs(prev => new Map(prev).set(visualId, config));
     
-    // Only process if we have both measure and groupBy selected
+    const visual = visuals.find((v) => v.id === visualId) ||
+      Array.from(slotVisuals.values()).find((v) => v.id === visualId);
+
+    // Handle table type - uses selectedColumns instead of measure/groupBy
+    if (visual?.type === "table") {
+      const selectedColumns = config.selectedColumns || [];
+      if (selectedColumns.length === 0 || metaAdsData.length === 0) {
+        handleUpdateVisual(visualId, { data: [] });
+        return;
+      }
+
+      // Map UI column names to database field names
+      const columnToDbField: Record<string, string> = {
+        // Measures
+        "Clicks": "clicks",
+        "Spend": "spend",
+        "Impressions": "impressions",
+        "Impression": "impressions",
+        "CTR": "ctr",
+        "CPC": "cpc",
+        "CPM": "cpm",
+        "Conversions": "conversions",
+        "ROAS": "roas",
+        "Leads": "conversions",
+        // Dimensions
+        "Campaign Name": "campaign_name",
+        "Ad Set Name": "ad_set_name",
+        "Ad Name": "ad_set_name",
+        "Platform": "campaign_name",
+        "Device": "campaign_name",
+        "Age": "campaign_name",
+        "Gender": "campaign_name",
+      };
+
+      // Build table data with selected columns only
+      const tableData = metaAdsData.slice(0, 50).map((record) => {
+        const row: Record<string, string | number> = { id: crypto.randomUUID() };
+        selectedColumns.forEach((col) => {
+          const dbField = columnToDbField[col] || col.toLowerCase().replace(/ /g, '_');
+          const value = record[dbField as keyof typeof record];
+          row[col] = value !== undefined ? value : '';
+        });
+        // Add category and value for compatibility with DataPoint
+        const firstDim = selectedColumns.find(c => columnToDbField[c] && ["campaign_name", "ad_set_name"].includes(columnToDbField[c]));
+        const firstMeasure = selectedColumns.find(c => columnToDbField[c] && ["clicks", "spend", "impressions", "ctr", "cpc", "cpm", "conversions", "roas"].includes(columnToDbField[c]));
+        row.category = firstDim ? String(row[firstDim]) : String(record.campaign_name);
+        row.value = firstMeasure ? Number(row[firstMeasure]) : 0;
+        return row as DataPoint;
+      });
+
+      handleUpdateVisual(visualId, {
+        data: tableData,
+        properties: {
+          ...visual?.properties!,
+          title: `Data Table (${selectedColumns.length} columns)`,
+        },
+      });
+
+      toast.success(`Loaded ${selectedColumns.length} columns`);
+      return;
+    }
+
+    // For other chart types, require measure and groupBy
     if (!config.measure || !config.groupBy || metaAdsData.length === 0) return;
 
     // Map UI dropdown values to database column names
@@ -837,9 +899,6 @@ function DashboardContent() {
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 15); // Limit to top 15 for readability
-
-    const visual = visuals.find((v) => v.id === visualId) ||
-      Array.from(slotVisuals.values()).find((v) => v.id === visualId);
 
     // Build title
     const timeLabel = config.dateGranularity !== "none" ? ` by ${config.dateGranularity}` : "";
