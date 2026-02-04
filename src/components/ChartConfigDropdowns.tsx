@@ -90,6 +90,14 @@ export const calculationTypes = [
   { value: "last", label: "Last Value" },
 ] as const;
 
+export const sortOptions = [
+  { value: "value-desc", label: "Value (High to Low)" },
+  { value: "value-asc", label: "Value (Low to High)" },
+  { value: "name-asc", label: "Name (A to Z)" },
+  { value: "name-desc", label: "Name (Z to A)" },
+  { value: "none", label: "No Sorting" },
+] as const;
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -98,6 +106,7 @@ export type MetaMetric = typeof metaMetrics[number];
 export type GroupByDimension = typeof groupByDimensions[number];
 export type DateGranularity = typeof dateGranularities[number]["value"];
 export type CalculationType = typeof calculationTypes[number]["value"];
+export type SortOption = typeof sortOptions[number]["value"];
 
 export interface ChartConfig {
   measure: MetaMetric | "";
@@ -106,6 +115,7 @@ export interface ChartConfig {
   dateGranularity: DateGranularity;
   calculation?: CalculationType;  // For KPI cards
   selectedColumns?: string[];  // For tables
+  sortBy?: SortOption;  // For sorting data
 }
 
 // ============================================================================
@@ -155,6 +165,10 @@ export function ChartConfigDropdowns({ config, onChange, visualType }: ChartConf
       ? current.filter(c => c !== column)
       : [...current, column];
     onChange({ ...config, selectedColumns: updated });
+  };
+
+  const handleSortChange = (value: string) => {
+    onChange({ ...config, sortBy: value as SortOption });
   };
 
   // All available columns for table = measures + dimensions
@@ -360,6 +374,24 @@ export function ChartConfigDropdowns({ config, onChange, visualType }: ChartConf
           </Select>
         </div>
 
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Sort By
+          </Label>
+          <Select value={config.sortBy || "value-desc"} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select sort order..." />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {config.measure && config.measure2 && config.groupBy && (
           <div className="pt-3 border-t">
             <p className="text-sm text-muted-foreground">
@@ -488,6 +520,24 @@ export function ChartConfigDropdowns({ config, onChange, visualType }: ChartConf
           </SelectTrigger>
           <SelectContent>
             {dateGranularities.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Sort By
+        </Label>
+        <Select value={config.sortBy || "value-desc"} onValueChange={handleSortChange}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select sort order..." />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

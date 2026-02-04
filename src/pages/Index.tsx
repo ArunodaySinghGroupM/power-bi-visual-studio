@@ -905,7 +905,7 @@ function DashboardContent() {
     const isRateField = (key: string) => ["ctr", "cpc", "cpm", "roas"].includes(key);
 
     // Create chart data points
-    const newData: DataPoint[] = Array.from(aggregatedData.entries())
+    let newData: DataPoint[] = Array.from(aggregatedData.entries())
       .map(([category, { sum, count, sum2, count2 }]) => {
         const dataPoint: DataPoint = {
           id: crypto.randomUUID(),
@@ -919,9 +919,31 @@ function DashboardContent() {
         }
         
         return dataPoint;
-      })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 15); // Limit to top 15 for readability
+      });
+
+    // Apply sorting based on config.sortBy
+    const sortBy = config.sortBy || "value-desc";
+    switch (sortBy) {
+      case "value-desc":
+        newData.sort((a, b) => b.value - a.value);
+        break;
+      case "value-asc":
+        newData.sort((a, b) => a.value - b.value);
+        break;
+      case "name-asc":
+        newData.sort((a, b) => a.category.localeCompare(b.category));
+        break;
+      case "name-desc":
+        newData.sort((a, b) => b.category.localeCompare(a.category));
+        break;
+      case "none":
+      default:
+        // No sorting
+        break;
+    }
+
+    // Limit to top 15 for readability
+    newData = newData.slice(0, 15);
 
     // Build title
     const timeLabel = config.dateGranularity !== "none" ? ` by ${config.dateGranularity}` : "";
