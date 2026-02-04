@@ -232,6 +232,9 @@ export function ComponentPalette({
     // If a visual is selected and we have a change handler, change the type
     if (selectedVisualType && onChangeVisualType) {
       onChangeVisualType(type);
+    } else {
+      // Otherwise, add a new visual
+      onAddVisual(type);
     }
   };
 
